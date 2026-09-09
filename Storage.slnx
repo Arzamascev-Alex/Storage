@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="Storage.Core/Storage.Core.csproj" />
+  <Project Path="Storage.Server/Storage.Server.csproj" Id="31dc0b85-0b35-4386-a3b4-c332ff404d93" />
   <Project Path="Storage.Tests/Storage.Tests.csproj" Id="471ffdd1-3168-4701-aac6-b2cb79464122" />
 </Solution>
