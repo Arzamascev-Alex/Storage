@@ -13,7 +13,7 @@ namespace Storage.Tests
         public void Set_ThenGet_ReturnsSavedValue()
         {
             //Arrange
-            SimpleStore store = new SimpleStore();
+            using SimpleStore store = new();
             byte[] value = [1, 2, 3];
 
             //Act
@@ -30,7 +30,7 @@ namespace Storage.Tests
         public void Get_WhenKeyDoesNotExist_ReturnsNull()
         {
             // Arrange
-            SimpleStore store = new SimpleStore();
+            using SimpleStore store = new();
 
             // Act
             byte[]? result = store.Get("unknown");
@@ -43,7 +43,7 @@ namespace Storage.Tests
         public void Set_WhenKeyAlreadyExists_UpdatesValue()
         {
             // Arrange
-            SimpleStore store = new SimpleStore();
+            using SimpleStore store = new();
 
             byte[] oldValue = [1, 2, 3];
             byte[] newValue = [4, 5, 6];
@@ -63,7 +63,7 @@ namespace Storage.Tests
         public void Delete_WhenKeyExists_RemovesValue()
         {
             // Arrange
-            SimpleStore store = new SimpleStore();
+            using SimpleStore store = new();
             byte[] value = [1, 2, 3];
 
             store.Set("user:1", value);
@@ -80,7 +80,7 @@ namespace Storage.Tests
         public void Delete_WhenKeyDoesNotExist_DoesNotThrow()
         {
             // Arrange
-            SimpleStore store = new();
+            using SimpleStore store = new();
 
             // Act
             Exception? exception = Record.Exception(() =>
@@ -92,6 +92,30 @@ namespace Storage.Tests
             Assert.Null(exception);
         }
 
+        [Fact]
+        public void GetStatistics_ReturnsCompletedOperationCounts()
+        {
+            // Arrange
+            using SimpleStore store = new();
+
+            // Act
+            store.Set("user:1", [1, 2, 3]);
+            store.Set("user:1", [4, 5, 6]);
+
+            store.Get("user:1");
+            store.Get("unknown");
+
+            store.Delete("user:1");
+            store.Delete("unknown");
+
+            var statistics = store.GetStatistics();
+
+            // Assert
+            Assert.Equal(2L, statistics.setCount);
+            Assert.Equal(2L, statistics.getCount);
+            Assert.Equal(2L, statistics.deleteCount);   
+
+        }
 
     }
 }
