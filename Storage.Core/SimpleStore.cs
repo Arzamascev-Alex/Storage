@@ -47,7 +47,7 @@ namespace Storage.Core
             }
             finally
             {
-                _lock.ExitWriteLock ();
+                _lock.ExitReadLock ();
             }
             
         }
@@ -74,7 +74,7 @@ namespace Storage.Core
             return
                 (
                     Interlocked.Read(ref _setCount),
-                    Interlocked.Read(ref _setCount),
+                    Interlocked.Read(ref _getCount),
                     Interlocked.Read(ref _deleteCount)
                 );
         }

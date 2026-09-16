@@ -52,7 +52,7 @@ namespace Storage.Server
 
                     ParsedCommand parsedCommand = CommandParser.Parse(receivedData);
 
-                    Console.WriteLine("Command: {parsedCommand.Command}");
+                    Console.WriteLine($"Command: {Encoding.UTF8.GetString(parsedCommand.Command)}");
                     Console.WriteLine($"Key: {Encoding.UTF8.GetString(parsedCommand.Key)}");
                     Console.WriteLine($"Value: {Encoding.UTF8.GetString(parsedCommand.Value)}");
                 }
