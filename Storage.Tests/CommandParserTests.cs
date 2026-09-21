@@ -15,10 +15,10 @@ namespace Storage.Tests
             byte[] input = Encoding.UTF8.GetBytes("SET user:1 data");
 
             // Act
-            ParsedCommand result = CommandParser.Parse(input);
+            Command result = CommandParser.Parse(input);
 
             // Assert
-            Assert.Equal("SET", ToText(result.Command));
+            Assert.Equal("SET", ToText(result.CommandName));
             Assert.Equal("user:1", ToText(result.Key));
             Assert.Equal("data", ToText(result.Value));
         }
@@ -30,10 +30,10 @@ namespace Storage.Tests
             byte[] input = Encoding.UTF8.GetBytes("GET user:1");
 
             // Act
-            ParsedCommand result = CommandParser.Parse(input);
+            Command result = CommandParser.Parse(input);
 
             // Assert
-            Assert.Equal("GET", ToText(result.Command));
+            Assert.Equal("GET", ToText(result.CommandName));
             Assert.Equal("user:1", ToText(result.Key));
             Assert.True(result.Value.IsEmpty);
         }
@@ -45,10 +45,10 @@ namespace Storage.Tests
             byte[] input = Encoding.UTF8.GetBytes("GET");
 
             // Act
-            ParsedCommand result = CommandParser.Parse(input);
+            Command result = CommandParser.Parse(input);
 
             // Assert
-            Assert.True(result.Command.IsEmpty);
+            Assert.True(result.CommandName.IsEmpty);
             Assert.True(result.Key.IsEmpty);
             Assert.True(result.Value.IsEmpty);
         }
@@ -60,10 +60,10 @@ namespace Storage.Tests
             byte[] input = Encoding.UTF8.GetBytes("SET    user:1     data");
 
             // Act
-            ParsedCommand result = CommandParser.Parse(input);
+            Command result = CommandParser.Parse(input);
 
             // Assert
-            Assert.Equal("SET", ToText(result.Command));
+            Assert.Equal("SET", ToText(result.CommandName));
             Assert.Equal("user:1", ToText(result.Key));
             Assert.Equal("data", ToText(result.Value));
         }

@@ -4,18 +4,18 @@ using System.Text;
 
 namespace Storage.Core
 {
-    public readonly ref struct ParsedCommand
+    public readonly ref struct Command
     {
-        public ReadOnlySpan<byte> Command { get; }
+        public ReadOnlySpan<byte> CommandName { get; }
         public ReadOnlySpan<byte> Key { get; }
         public ReadOnlySpan<byte> Value { get; }
 
-        public ParsedCommand(
-            ReadOnlySpan<byte> command,
+        public Command(
+            ReadOnlySpan<byte> commandName,
             ReadOnlySpan<byte> key,
             ReadOnlySpan<byte> value)
         {
-            Command = command;
+            CommandName = commandName;
             Key = key;
             Value = value;
 

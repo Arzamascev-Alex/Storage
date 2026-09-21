@@ -9,7 +9,7 @@ namespace Storage.Core
         private const byte Space = (byte)' ';
 
 
-        public static ParsedCommand Parse(ReadOnlySpan<byte> input)
+        public static Command Parse(ReadOnlySpan<byte> input)
         {
 
             //Удалим пробелы в начале и в конце
@@ -49,7 +49,7 @@ namespace Storage.Core
             //пробела после ключа нет, значит содержится только команда и ключ
             if (keyEndIndex < 0)
             {
-                return new ParsedCommand(
+                return new Command(
                     command,
                     input,
                     ReadOnlySpan<byte>.Empty);
@@ -63,7 +63,7 @@ namespace Storage.Core
             //пропускаем пробелы между ключом и значением 
             ReadOnlySpan<byte> value = TrimStartSpaces(input);
 
-            return new ParsedCommand(command, key, value);
+            return new Command(command, key, value);
 
         }
 

@@ -13,6 +13,18 @@ namespace Storage.Server
     {
         private const int BufferSize  = 4096;
         private readonly IPEndPoint _endPoint = new(IPAddress.Loopback, 8080);
+        private readonly SimpleStore _store; 
+
+        //  готовые ответы
+        private static readonly byte[] OkResponse = Encoding.UTF8.GetBytes("OK\r\n");
+        private static readonly byte[] NilResponse = Encoding.UTF8.GetBytes("(nil)r\n");
+        private static readonly byte[] InvalidCommandResponse = Encoding.UTF8.GetBytes("ERROR Invalid command\r\n");
+        private static readonly byte[] UnknownCommandResponse = Encoding.UTF8.GetBytes("ERROR Unknown command\r\n");
+
+        public TcpServer(SimpleStore store)
+        {
+            _store = store;
+        }
 
         public async Task StartAsync()
         {
@@ -32,7 +44,7 @@ namespace Storage.Server
             }
         }
 
-        private static async Task ProcessClientAsync(Socket clientSocket)
+        private async Task ProcessClientAsync(Socket clientSocket)
         {
             byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
 
@@ -50,9 +62,9 @@ namespace Storage.Server
 
                     ReadOnlySpan<byte> receivedData = buffer.AsSpan(0, bytesRead);
 
-                    ParsedCommand parsedCommand = CommandParser.Parse(receivedData);
+                    Command parsedCommand = CommandParser.Parse(receivedData);
 
-                    Console.WriteLine($"Command: {Encoding.UTF8.GetString(parsedCommand.Command)}");
+                    Console.WriteLine($"Command: {Encoding.UTF8.GetString(parsedCommand.CommandName)}");
                     Console.WriteLine($"Key: {Encoding.UTF8.GetString(parsedCommand.Key)}");
                     Console.WriteLine($"Value: {Encoding.UTF8.GetString(parsedCommand.Value)}");
                 }
@@ -78,6 +90,74 @@ namespace Storage.Server
                 Console.WriteLine("Client socket close.");
             }
 
+
+        }
+
+        private byte[] ExecuteCommand(ReadOnlySpan<byte> commandBytes)
+        {
+            Command command = CommandParser.Parse(commandBytes);
+
+            if (command.CommandName.IsEmpty || command.Key.IsEmpty)
+            {
+                return InvalidCommandResponse;
+            }
+
+            if (command.CommandName.SequenceEqual("SET"u8))
+            {
+                if (command.Value.IsEmpty)
+                {
+                    return InvalidCommandResponse;
+                }
+
+                string key = Encoding.UTF8.GetString(command.Key);
+                byte[] value = command.Value.ToArray();
+
+                _store.Set(key, value);
+
+                return OkResponse;
+
+            }
+
+            if (command.CommandName.SequenceEqual("GET"u8))
+            {
+                if (!command.Value.IsEmpty)
+                {
+                    return InvalidCommandResponse;
+                }
+
+                string key = Encoding.UTF8.GetString(command.Key);
+                byte[]? value = _store.Get(key);
+
+                if (value is null)
+                {
+                    return NilResponse;
+                }
+
+                byte[] responce = new byte[value.Length + 2];
+
+                value.AsSpan().CopyTo(responce.AsSpan());
+
+                responce[^2] = (byte)'\r';
+                responce[^1] = (byte)'\n';
+
+                return responce;
+            }
+
+            if (command.CommandName.SequenceEqual("DEL"u8) || command.CommandName.SequenceEqual("DELETE"u8))
+            {
+                if (!command.Value.IsEmpty)
+                {
+                    return InvalidCommandResponse;
+                }
+
+                string key = Encoding.UTF8.GetString(command.Key);
+
+                _store.Delete(key);
+
+                return OkResponse;
+            }
+
+            return UnknownCommandResponse;
 
         }
 
