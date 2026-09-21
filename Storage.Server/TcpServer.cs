@@ -17,9 +17,10 @@ namespace Storage.Server
 
         //  готовые ответы
         private static readonly byte[] OkResponse = Encoding.UTF8.GetBytes("OK\r\n");
-        private static readonly byte[] NilResponse = Encoding.UTF8.GetBytes("(nil)r\n");
+        private static readonly byte[] NilResponse = Encoding.UTF8.GetBytes("(nil)\r\n");
         private static readonly byte[] InvalidCommandResponse = Encoding.UTF8.GetBytes("ERROR Invalid command\r\n");
         private static readonly byte[] UnknownCommandResponse = Encoding.UTF8.GetBytes("ERROR Unknown command\r\n");
+        private static readonly byte[] CommandTooLongResponse = Encoding.UTF8.GetBytes("ERROR Command too long\r\n");   //  ограничение для слишком длинных команд
 
         public TcpServer(SimpleStore store)
         {
@@ -47,12 +48,13 @@ namespace Storage.Server
         private async Task ProcessClientAsync(Socket clientSocket)
         {
             byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+            int bufferedCount = 0;
 
             try
             {
                 while (true)
                 {
-                    int bytesRead = await clientSocket.ReceiveAsync(buffer.AsMemory(), SocketFlags.None);
+                    int bytesRead = await clientSocket.ReceiveAsync(buffer.AsMemory(bufferedCount, BufferSize - bufferedCount), SocketFlags.None);
 
                     if (bytesRead == 0)
                     {
@@ -60,13 +62,58 @@ namespace Storage.Server
                         break;
                     }
 
-                    ReadOnlySpan<byte> receivedData = buffer.AsSpan(0, bytesRead);
+                    bufferedCount += bytesRead;
 
-                    Command parsedCommand = CommandParser.Parse(receivedData);
+                    //  upd: клиент завершает каждый запрос символом \n или парой \r\n 
+                    //  без них сервер ждёт продолжения, при отключении клиента незавершённую строку не выполняем
 
-                    Console.WriteLine($"Command: {Encoding.UTF8.GetString(parsedCommand.CommandName)}");
-                    Console.WriteLine($"Key: {Encoding.UTF8.GetString(parsedCommand.Key)}");
-                    Console.WriteLine($"Value: {Encoding.UTF8.GetString(parsedCommand.Value)}");
+                    int commandStart = 0;
+
+                    while (true)
+                    {
+                        int newLineIndex = Array.IndexOf(buffer, (byte)'\n', commandStart, bufferedCount - commandStart);
+
+                        if (newLineIndex < 0)
+                        {
+                            break;
+                        }
+
+                        int commandLength = newLineIndex - commandStart;
+
+                        if (commandLength > 0 && buffer[newLineIndex - 1] == (byte)'\r')    //  исключаем  \r
+                        {
+                            commandLength--;
+                        }
+
+                        byte[] response = ExecuteCommand(buffer.AsSpan(commandStart, commandLength));
+
+                        await SendAllAsync(clientSocket, response);
+
+                        commandStart = newLineIndex + 1;    // следующая команда начинется после \n
+                    }
+
+                    int remainingCount = bufferedCount - commandStart;
+
+                    if (remainingCount > 0 && commandStart > 0)
+                    {
+                        Array.Copy(buffer, commandStart, buffer, 0, remainingCount);
+                    }
+
+                    bufferedCount = remainingCount;
+
+                    if (bufferedCount == BufferSize)
+                    {
+                        await SendAllAsync(clientSocket, CommandTooLongResponse);
+                        break;
+                    }
+
+                    //ReadOnlySpan<byte> receivedData = buffer.AsSpan(0, bytesRead);
+
+                    //Command parsedCommand = CommandParser.Parse(receivedData);
+
+                    //Console.WriteLine($"Command: {Encoding.UTF8.GetString(parsedCommand.CommandName)}");
+                    //Console.WriteLine($"Key: {Encoding.UTF8.GetString(parsedCommand.Key)}");
+                    //Console.WriteLine($"Value: {Encoding.UTF8.GetString(parsedCommand.Value)}");
                 }
             }
             catch (SocketException ex)
@@ -89,7 +136,6 @@ namespace Storage.Server
                 clientSocket.Dispose();
                 Console.WriteLine("Client socket close.");
             }
-
 
         }
 
@@ -158,6 +204,22 @@ namespace Storage.Server
             }
 
             return UnknownCommandResponse;
+
+        }
+
+        private static async Task SendAllAsync(Socket clientSocket, ReadOnlyMemory<byte> responce)
+        {
+            while (!responce.IsEmpty)
+            {
+                int bytesSend = await clientSocket.SendAsync(responce, SocketFlags.None);
+
+                if (bytesSend == 0)
+                {
+                    throw new SocketException((int)SocketError.ConnectionReset);
+                }
+
+                responce = responce.Slice(bytesSend);   //  оставляет участок после отправленных байтов без копирования
+            }
 
         }
 
