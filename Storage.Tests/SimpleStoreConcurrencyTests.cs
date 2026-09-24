@@ -27,13 +27,26 @@ namespace Storage.Tests
             const int writerCount = 4;
             const int operationsPerTask = 1_000;
 
-            byte[] ReadableValue = [10, 20, 30];
+            DateTime createdAt = new(
+                2026, 9, 24, 12, 0, 0, DateTimeKind.Utc);
 
-            store.Set("readable", ReadableValue);
+            UserProfile readableProfile = new()
+            {
+                Id = 1,
+                UserName = "Readable",
+                CreatedAt = createdAt
+            };
+
+            store.Set("readable", readableProfile);
 
             for (int i = 0; i < operationsPerTask; i++ )
             {
-                store.Set($"delete:{i}", [99]);
+                store.Set($"delete:{i}", new UserProfile
+                {
+                    Id = i,
+                    UserName = "ToDelete",
+                    CreatedAt = createdAt
+                });
             }
 
             var tasks = new List<Task>();
@@ -46,7 +59,12 @@ namespace Storage.Tests
                 {
                     for (int i = 0; i < operationsPerTask; i++)
                     {
-                        store.Set($"writer:{writerId}:{i}", BitConverter.GetBytes(i));
+                        store.Set($"writer:{writerId}:{i}", new UserProfile()
+                        {
+                            Id = i,
+                            UserName = $"Writer_{writerId}",
+                            CreatedAt = createdAt
+                        });
                     }
                 }));
             }
@@ -57,7 +75,12 @@ namespace Storage.Tests
                     {
                         for (int i = 0; i < operationsPerTask; i++)
                         {
-                            Assert.Equal(ReadableValue, store.Get("readable"));
+                            UserProfile? result = store.Get("readable");
+
+                            Assert.NotNull(result);
+                            Assert.Equal(readableProfile.Id, result.Id);
+                            Assert.Equal(readableProfile.UserName, result.UserName);
+                            Assert.Equal(readableProfile.CreatedAt, result.CreatedAt);
                         }
 
                     }));
@@ -90,7 +113,12 @@ namespace Storage.Tests
             {
                 for (int i = 0; i < operationsPerTask; i++)
                 {
-                    Assert.Equal(BitConverter.GetBytes(i), store.Get($"writer:{writer}:{i}"));
+                    UserProfile? result = store.Get($"writer:{writer}:{i}");
+
+                    Assert.NotNull(result);
+                    Assert.Equal(i, result.Id);
+                    Assert.Equal($"Writer_{writer}", result.UserName);
+                    Assert.Equal(createdAt, result.CreatedAt);
                 }
             }
 

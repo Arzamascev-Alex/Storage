@@ -6,6 +6,8 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Globalization;
+using Storage.Core;
+using System.Text.Json;
 
 namespace Storage.LoadTests
 {
@@ -25,24 +27,14 @@ namespace Storage.LoadTests
             _reader = new StreamReader(_stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true);
         }
 
-        public async Task SetAsync(string key, byte[] value, CancellationToken cancellationToken = default)
+        public async Task SetAsync(string key, UserProfile profile, CancellationToken cancellationToken = default)
         {
             ValidateKey(key);
-            ArgumentNullException.ThrowIfNull(value);
+            ArgumentNullException.ThrowIfNull(profile);
 
-            if (value.Length == 0 || Array.IndexOf(value, (byte)'\r') >= 0 || Array.IndexOf(value, (byte)'\n') >= 0)
-            {
-                throw new ArgumentException("Значение не должно быть пустым или содержать переносы строк.", nameof(value));
-            }
+            string json = JsonSerializer.Serialize(profile);
 
-            byte[] prefix = Encoding.UTF8.GetBytes($"SET {key} ");
-            byte[] request = new byte[prefix.Length + value.Length + 2];
-
-            prefix.CopyTo(request, 0 );
-            value.CopyTo(request, prefix.Length);
-
-            request[^2] = (byte)'\r';
-            request[^1] = (byte)'\n';
+            byte[] request = Encoding.UTF8.GetBytes($"SET {key} {json}\r\n");
 
             string response = await SendCommandAsync(request, cancellationToken);
 
@@ -50,8 +42,35 @@ namespace Storage.LoadTests
             {
                 throw new IOException($"Неожиданный ответ на SET: {response}");
             }
-
         }
+
+        //public async Task SetAsync(string key, byte[] value, CancellationToken cancellationToken = default)
+        //{
+        //    ValidateKey(key);
+        //    ArgumentNullException.ThrowIfNull(value);
+
+        //    if (value.Length == 0 || Array.IndexOf(value, (byte)'\r') >= 0 || Array.IndexOf(value, (byte)'\n') >= 0)
+        //    {
+        //        throw new ArgumentException("Значение не должно быть пустым или содержать переносы строк.", nameof(value));
+        //    }
+
+        //    byte[] prefix = Encoding.UTF8.GetBytes($"SET {key} ");
+        //    byte[] request = new byte[prefix.Length + value.Length + 2];
+
+        //    prefix.CopyTo(request, 0 );
+        //    value.CopyTo(request, prefix.Length);
+
+        //    request[^2] = (byte)'\r';
+        //    request[^1] = (byte)'\n';
+
+        //    string response = await SendCommandAsync(request, cancellationToken);
+
+        //    if (response != "OK")
+        //    {
+        //        throw new IOException($"Неожиданный ответ на SET: {response}");
+        //    }
+
+        //}
 
         public async Task<string?> GetAsync(string key, CancellationToken cancellationToken = default)
         {
@@ -61,7 +80,7 @@ namespace Storage.LoadTests
 
             string response = await SendCommandAsync(request, cancellationToken);
 
-            return response == "(nill)" ? null : response; 
+            return response == "(nil)" ? null : response; 
         }
 
         private async Task<string> SendCommandAsync(byte[] request, CancellationToken cancellationToken)

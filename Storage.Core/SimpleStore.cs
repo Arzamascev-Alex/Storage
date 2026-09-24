@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
+using System.Text.Json;
 
 namespace Storage.Core
 {
@@ -15,13 +16,17 @@ namespace Storage.Core
         private long _getCount;
         private long _deleteCount;
 
-        public void Set(string key, byte[] value)
+        public void Set(string key, UserProfile profile)
         {
+            ArgumentNullException.ThrowIfNull(profile);
+            
+            byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(profile);
+
             _lock.EnterWriteLock();
 
             try 
             {
-                _storage[key] = value;
+                _storage[key] = bytes;
 
                 Interlocked.Increment(ref _setCount);
 
@@ -33,23 +38,29 @@ namespace Storage.Core
             
         }
 
-        public byte[]? Get(string key)
+        public UserProfile? Get(string key)
         {
+            byte[]? bytes;
+
             _lock.EnterReadLock();
 
             try
             {
-                _storage.TryGetValue(key, out byte[]? value);
+                _storage.TryGetValue(key, out bytes);
 
                 Interlocked.Increment(ref _getCount);
-
-                return value;
             }
             finally
             {
                 _lock.ExitReadLock ();
             }
-            
+
+            if (bytes is null)
+            {
+                return null;
+            }
+
+            return JsonSerializer.Deserialize<UserProfile>(bytes);
         }
 
         public void Delete(string key)

@@ -4,7 +4,6 @@ using System.Text;
 using Storage.Core;
 using Xunit;
 
-
 namespace Storage.Tests
 {
     public class SimpleStoreTests
@@ -14,15 +13,23 @@ namespace Storage.Tests
         {
             //Arrange
             using SimpleStore store = new();
-            byte[] value = [1, 2, 3];
+
+            UserProfile profile = new UserProfile()
+            {
+                Id = 1,
+                UserName = "Alex",
+                CreatedAt = new DateTime(2026, 9, 24, 12, 0, 0, DateTimeKind.Utc)
+            };
 
             //Act
-            store.Set("user:1", value);
-            byte[]? result = store.Get("user:1");
+            store.Set("user:1", profile);
+            UserProfile? result = store.Get("user:1");
 
             //Assert
             Assert.NotNull(result);
-            Assert.Equal(value, result);
+            Assert.Equal(profile.Id, result.Id);
+            Assert.Equal(profile.UserName, result.UserName);
+            Assert.Equal(profile.CreatedAt, result.CreatedAt);
 
         }
 
@@ -33,7 +40,7 @@ namespace Storage.Tests
             using SimpleStore store = new();
 
             // Act
-            byte[]? result = store.Get("unknown");
+            UserProfile? result = store.Get("unknown");
 
             // Assert
             Assert.Null(result);
@@ -45,18 +52,31 @@ namespace Storage.Tests
             // Arrange
             using SimpleStore store = new();
 
-            byte[] oldValue = [1, 2, 3];
-            byte[] newValue = [4, 5, 6];
+            UserProfile oldProfile = new()
+            {
+                Id = 1,
+                UserName = "Old",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            UserProfile newProfile = new()
+            {
+                Id = 2,
+                UserName = "New",
+                CreatedAt = DateTime.UtcNow
+            };
 
             // Act
-            store.Set("user:1", oldValue);
-            store.Set("user:1", newValue);
+            store.Set("user:1", oldProfile);
+            store.Set("user:1", newProfile);
 
-            byte[]? result = store.Get("user:1");
+            UserProfile? result = store.Get("user:1");
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(newValue, result);
+            Assert.Equal(newProfile.Id, result.Id);
+            Assert.Equal(newProfile.UserName, result.UserName);
+            Assert.Equal(newProfile.CreatedAt, result.CreatedAt);
         }
 
         [Fact]
@@ -64,16 +84,21 @@ namespace Storage.Tests
         {
             // Arrange
             using SimpleStore store = new();
-            byte[] value = [1, 2, 3];
 
-            store.Set("user:1", value);
+            UserProfile profile = new()
+            {
+                Id = 1,
+                UserName = "Alex",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            store.Set("user:1", profile);
 
             // Act
             store.Delete("user:1");
-            byte[]? result = store.Get("user:1");
 
             // Assert
-            Assert.Null(result);
+            Assert.Null(store.Get("user:1"));
         }
 
         [Fact]
@@ -98,9 +123,16 @@ namespace Storage.Tests
             // Arrange
             using SimpleStore store = new();
 
+            UserProfile profile = new()
+            {
+                Id = 1,
+                UserName = "Alex",
+                CreatedAt = DateTime.UtcNow
+            };
+
             // Act
-            store.Set("user:1", [1, 2, 3]);
-            store.Set("user:1", [4, 5, 6]);
+            store.Set("user:1", profile);
+            store.Set("user:1", profile);
 
             store.Get("user:1");
             store.Get("unknown");

@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Net.Security;
 using System.Buffers;
 using Storage.Core;
+using System.Text.Json;
 
 namespace Storage.Server
 {
@@ -21,6 +22,7 @@ namespace Storage.Server
         private static readonly byte[] InvalidCommandResponse = Encoding.UTF8.GetBytes("ERROR Invalid command\r\n");
         private static readonly byte[] UnknownCommandResponse = Encoding.UTF8.GetBytes("ERROR Unknown command\r\n");
         private static readonly byte[] CommandTooLongResponse = Encoding.UTF8.GetBytes("ERROR Command too long\r\n");   //  ограничение для слишком длинных команд
+        private static readonly byte[] InvalidJsonResponse = Encoding.UTF8.GetBytes("ERROR Invalid JSON\r\n");
 
         public TcpServer(SimpleStore store)
         {
@@ -155,10 +157,25 @@ namespace Storage.Server
                     return InvalidCommandResponse;
                 }
 
-                string key = Encoding.UTF8.GetString(command.Key);
-                byte[] value = command.Value.ToArray();
+                UserProfile? profile;
 
-                _store.Set(key, value);
+                try
+                {
+                    profile = JsonSerializer.Deserialize<UserProfile>(command.Value);
+                }
+                catch (JsonException)
+                {
+                    return InvalidJsonResponse;
+                }
+
+                if (profile is null)
+                {
+                    return InvalidJsonResponse;
+                }
+
+                string key = Encoding.UTF8.GetString(command.Key);
+
+                _store.Set(key, profile);
 
                 return OkResponse;
 
@@ -172,12 +189,15 @@ namespace Storage.Server
                 }
 
                 string key = Encoding.UTF8.GetString(command.Key);
-                byte[]? value = _store.Get(key);
 
-                if (value is null)
+                UserProfile? profile = _store.Get(key);
+
+                if (profile is null)
                 {
                     return NilResponse;
                 }
+
+                byte[] value = JsonSerializer.SerializeToUtf8Bytes(profile);
 
                 byte[] responce = new byte[value.Length + 2];
 
