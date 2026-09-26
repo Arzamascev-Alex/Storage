@@ -1,7 +1,8 @@
 <Solution>
-  <Project Path="../../../../../../../../Projects/CSharp/Storage/Storage.Core/Storage.Core.csproj" />
-  <Project Path="../../../../../../../../Projects/CSharp/Storage/Storage.Generators/Storage.Generators.csproj" Id="da0c7782-239c-461b-9419-00e76da345dc" />
-  <Project Path="../../../../../../../../Projects/CSharp/Storage/Storage.LoadTests/Storage.LoadTests.csproj" Id="04cdc969-f185-4526-9f92-905eacdffe97" />
-  <Project Path="../../../../../../../../Projects/CSharp/Storage/Storage.Server/Storage.Server.csproj" Id="31dc0b85-0b35-4386-a3b4-c332ff404d93" />
-  <Project Path="../../../../../../../../Projects/CSharp/Storage/Storage.Tests/Storage.Tests.csproj" Id="471ffdd1-3168-4701-aac6-b2cb79464122" />
+  <Project Path="Storage.Benchmarks/Storage.Benchmarks.csproj" Id="f83e603f-429e-4209-9b1c-5295f56048db" />
+  <Project Path="Storage.Core/Storage.Core.csproj" />
+  <Project Path="Storage.Generators/Storage.Generators.csproj" Id="da0c7782-239c-461b-9419-00e76da345dc" />
+  <Project Path="Storage.LoadTests/Storage.LoadTests.csproj" Id="04cdc969-f185-4526-9f92-905eacdffe97" />
+  <Project Path="Storage.Server/Storage.Server.csproj" Id="31dc0b85-0b35-4386-a3b4-c332ff404d93" />
+  <Project Path="Storage.Tests/Storage.Tests.csproj" Id="471ffdd1-3168-4701-aac6-b2cb79464122" />
 </Solution>

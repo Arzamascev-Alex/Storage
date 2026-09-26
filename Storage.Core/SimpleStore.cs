@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
-using System.Text.Json;
+//using System.Text.Json;
+using System.IO;
 
 namespace Storage.Core
 {
@@ -19,8 +20,14 @@ namespace Storage.Core
         public void Set(string key, UserProfile profile)
         {
             ArgumentNullException.ThrowIfNull(profile);
+
+            using var stream = new MemoryStream();
+
+            profile.SerializeToBinary(stream);
+
+            byte[] bytes = stream.ToArray();
             
-            byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(profile);
+            //byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(profile);
 
             _lock.EnterWriteLock();
 
@@ -60,7 +67,11 @@ namespace Storage.Core
                 return null;
             }
 
-            return JsonSerializer.Deserialize<UserProfile>(bytes);
+            using var stream = new MemoryStream(bytes, writable: false);
+
+            return UserProfile.DeserializeFromBinary(stream);
+
+            //return JsonSerializer.Deserialize<UserProfile>(bytes);
         }
 
         public void Delete(string key)
