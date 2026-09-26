@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using Storage.Serialization;
 
 namespace Storage.Core
 {
-    public class UserProfile
+    [GenerateBinarySerializer]
+    public partial class UserProfile
     {
         public int Id { get; set; }
         public string UserName {  get; set; } = string.Empty;
