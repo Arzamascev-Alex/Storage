@@ -33,5 +33,11 @@ namespace Storage.Benchmarks
 
         }
 
+        [Benchmark]
+        public byte[] SerializeBinaryDirect()
+        {
+            return _profile.SerializeToBinary();
+        }
+
     }
 }

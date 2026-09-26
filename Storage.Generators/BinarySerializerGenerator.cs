@@ -149,6 +149,8 @@ namespace Storage.Generators
 
             AppendDeserializer(source, classSymbol, properties);
 
+            AppendArraySerializer(source, properties);
+
             source.AppendLine("}");
 
             if (hasNamespace)
@@ -204,6 +206,116 @@ namespace Storage.Generators
             source.AppendLine("        };");
             source.AppendLine("    }");
         }
+
+        private static void AppendArraySerializer(StringBuilder source, IPropertySymbol[] properties)
+        {
+            source.AppendLine();
+            source.AppendLine("    public byte[] SerializeToBinary()");
+            source.AppendLine("    {");
+
+            //  cохраняем значения свойств в локальные переменные
+            for (int i = 0; i < properties.Length; i++)
+            {
+                source.AppendLine($"        var value{i} = this.@{properties[i].Name};");
+            }
+
+            source.AppendLine();
+            source.AppendLine("        int size = 0;");
+
+            //  рассчитываем размер
+            for (int i = 0; i < properties.Length; i++)
+            {
+                switch (properties[i].Type.SpecialType)
+                {
+                    case SpecialType.System_Int32:
+                        source.AppendLine("        size = checked(size + 4);");
+                        break;
+
+                    case SpecialType.System_DateTime:
+                        source.AppendLine("        size = checked(size + 8);");
+                        break;
+
+                    case SpecialType.System_String:
+                        source.AppendLine($"        int byteCount{i} = value{i} is null");
+                        source.AppendLine("            ? 0");
+                        source.AppendLine($"            : global::System.Text.Encoding.UTF8.GetByteCount(value{i});");
+
+                        //  один байт признак наличия строки
+                        source.AppendLine("        size = checked(size + 1);");
+
+                        source.AppendLine($"        if (value{i} is not null)");
+                        source.AppendLine("        {");
+
+                        //  байты строки плюс минимум один байт длины
+                        source.AppendLine($"            size = checked(size + byteCount{i} + 1);");
+
+                        //  учитываем дополнительные байты длины строки
+                        source.AppendLine($"            for (int remaining = byteCount{i}; remaining >= 128; remaining >>= 7)");
+                        source.AppendLine("            {");
+                        source.AppendLine("                size = checked(size + 1);");
+                        source.AppendLine("            }");
+
+                        source.AppendLine("        }");
+                        break;
+                }
+            }
+
+            //  единственный массив, содержащий готовый результат
+            source.AppendLine();
+            source.AppendLine("        byte[] bytes = new byte[size];");
+            source.AppendLine("        global::System.Span<byte> destination = bytes;");
+            source.AppendLine("        int offset = 0;");
+            source.AppendLine();
+
+            //  записываем значения в массив
+            for (int i = 0; i < properties.Length; i++)
+            {
+                switch (properties[i].Type.SpecialType)
+                {
+                    case SpecialType.System_Int32:
+                        source.AppendLine("        global::System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(");
+                        source.AppendLine($"            destination.Slice(offset, 4), value{i});");
+                        source.AppendLine("        offset += 4;");
+                        break;
+
+                    case SpecialType.System_DateTime:
+                        source.AppendLine("        global::System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(");
+                        source.AppendLine($"            destination.Slice(offset, 8), value{i}.ToBinary());");
+                        source.AppendLine("        offset += 8;");
+                        break;
+
+                    case SpecialType.System_String:
+                        source.AppendLine($"        destination[offset++] = value{i} is null ? (byte)0 : (byte)1;");
+
+                        source.AppendLine($"        if (value{i} is not null)");
+                        source.AppendLine("        {");
+
+                        //  записываем длину строки порциями по 7 бит
+                        source.AppendLine($"            uint remaining = (uint)byteCount{i};");
+
+                        source.AppendLine("            while (remaining >= 128)");
+                        source.AppendLine("            {");
+                        source.AppendLine("                destination[offset++] = (byte)((remaining & 0x7Fu) | 0x80u);");
+                        source.AppendLine("                remaining >>= 7;");
+                        source.AppendLine("            }");
+
+                        source.AppendLine("            destination[offset++] = (byte)remaining;");
+
+                        //  кодируем строку сразу в итоговый массив
+                        source.AppendLine("            offset += global::System.Text.Encoding.UTF8.GetBytes(");
+                        source.AppendLine($"                global::System.MemoryExtensions.AsSpan(value{i}),");
+                        source.AppendLine($"                destination.Slice(offset, byteCount{i}));");
+
+                        source.AppendLine("        }");
+                        break;
+                }
+            }
+
+            source.AppendLine();
+            source.AppendLine("        return bytes;");
+            source.AppendLine("    }");
+        }
+
 
         public static void GeneratePropertyReport(SourceProductionContext output, INamedTypeSymbol classSymbol)
         {

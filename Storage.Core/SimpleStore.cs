@@ -25,8 +25,10 @@ namespace Storage.Core
 
             profile.SerializeToBinary(stream);
 
-            byte[] bytes = stream.ToArray();
-            
+            //byte[] bytes = stream.ToArray();
+
+            byte[] bytes = profile.SerializeToBinary();
+
             //byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(profile);
 
             _lock.EnterWriteLock();
