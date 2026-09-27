@@ -7,6 +7,7 @@ using System.Net.Security;
 using System.Buffers;
 using Storage.Core;
 using System.Text.Json;
+using System.Diagnostics;
 
 namespace Storage.Server
 {
@@ -14,14 +15,16 @@ namespace Storage.Server
     {
         private const int BufferSize  = 4096;
         private readonly IPEndPoint _endPoint = new(IPAddress.Loopback, 8080);
-        private readonly SimpleStore _store; 
+        private readonly SimpleStore _store;
+        private const int MaxClients = 100;
+        private readonly SemaphoreSlim _clientSemaphore = new(MaxClients, MaxClients);
 
         //  готовые ответы
         private static readonly byte[] OkResponse = Encoding.UTF8.GetBytes("OK\r\n");
         private static readonly byte[] NilResponse = Encoding.UTF8.GetBytes("(nil)\r\n");
         private static readonly byte[] InvalidCommandResponse = Encoding.UTF8.GetBytes("ERROR Invalid command\r\n");
         private static readonly byte[] UnknownCommandResponse = Encoding.UTF8.GetBytes("ERROR Unknown command\r\n");
-        private static readonly byte[] CommandTooLongResponse = Encoding.UTF8.GetBytes("ERROR Command too long\r\n");   //  ограничение для слишком длинных команд
+        //private static readonly byte[] CommandTooLongResponse = Encoding.UTF8.GetBytes("ERROR Command too long\r\n");   //  ограничение для слишком длинных команд
         private static readonly byte[] InvalidJsonResponse = Encoding.UTF8.GetBytes("ERROR Invalid JSON\r\n");
 
         public TcpServer(SimpleStore store)
@@ -40,8 +43,18 @@ namespace Storage.Server
 
             while (true)
             {
-                Socket clientSocket = await serverSocket.AcceptAsync();
-                Console.WriteLine($"CLient connected: {clientSocket.RemoteEndPoint}");
+                await _clientSemaphore.WaitAsync();
+
+                Socket clientSocket;
+                try
+                {
+                    clientSocket = await serverSocket.AcceptAsync();
+                }
+                catch
+                {
+                    _clientSemaphore.Release();
+                    throw;
+                }
 
                 _ = ProcessClientAsync(clientSocket);
             }
@@ -49,11 +62,14 @@ namespace Storage.Server
 
         private async Task ProcessClientAsync(Socket clientSocket)
         {
-            byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+            byte[]? buffer = null;
             int bufferedCount = 0;
 
             try
             {
+                buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+                Console.WriteLine($"Client processing started: {clientSocket.RemoteEndPoint}");
+
                 while (true)
                 {
                     int bytesRead = await clientSocket.ReceiveAsync(buffer.AsMemory(bufferedCount, BufferSize - bufferedCount), SocketFlags.None);
@@ -87,7 +103,21 @@ namespace Storage.Server
                             commandLength--;
                         }
 
-                        byte[] response = ExecuteCommand(buffer.AsSpan(commandStart, commandLength));
+                        byte[] response;
+
+                        using (Activity? activity = ServerTelemetry.ActivitySource.StartActivity("storage.command", ActivityKind.Server))
+                        {
+                            activity?.SetTag("command.size", commandLength);
+
+                            long startedAt = Stopwatch.GetTimestamp();
+
+                            response = ExecuteCommand(buffer.AsSpan(commandStart, commandLength), activity);
+
+                            double elapsedMs = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
+
+                            ServerTelemetry.CommandsProcessed.Add(1);
+                            ServerTelemetry.CommandDuration.Record(elapsedMs);
+                        }
 
                         await SendAllAsync(clientSocket, response);
 
@@ -105,7 +135,8 @@ namespace Storage.Server
 
                     if (bufferedCount == BufferSize)
                     {
-                        await SendAllAsync(clientSocket, CommandTooLongResponse);
+                        //await SendAllAsync(clientSocket, CommandTooLongResponse);
+                        Console.WriteLine("Client disconnected: command size limit exceeded.");
                         break;
                     }
 
@@ -124,26 +155,45 @@ namespace Storage.Server
             }
             finally
             {
-                ArrayPool<byte>.Shared.Return(buffer);
-
-                try 
+                try
                 {
-                    clientSocket.Shutdown(SocketShutdown.Both);
+                    if (buffer is not null)
+                    {
+                        ArrayPool<byte>.Shared.Return(buffer);
+                    }
+
+                    try
+                    {
+                        clientSocket.Shutdown(SocketShutdown.Both);
+                    }
+                    catch (SocketException)
+                    {
+                        //
+                    }
                 }
-                catch (SocketException)
+                finally
                 {
-                    //
+                    try
+                    {
+                        clientSocket.Dispose();
+                    }
+                    finally
+                    {
+                        _clientSemaphore.Release();
+                    }
                 }
 
-                clientSocket.Dispose();
                 Console.WriteLine("Client socket close.");
+
             }
 
         }
 
-        private byte[] ExecuteCommand(ReadOnlySpan<byte> commandBytes)
+        private byte[] ExecuteCommand(ReadOnlySpan<byte> commandBytes, Activity? activity)
         {
             Command command = CommandParser.Parse(commandBytes);
+
+            activity?.SetTag("command.name", command.CommandName.IsEmpty ? "INVALID" : Encoding.UTF8.GetString(command.CommandName));
 
             if (command.CommandName.IsEmpty || command.Key.IsEmpty)
             {
